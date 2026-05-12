@@ -16,6 +16,18 @@ L.Icon.Default.mergeOptions({
 const AISNE_CENTER = [49.567, 3.621];
 const AISNE_ZOOM = 10;
 
+// Auto-zoom component
+function MapAutoBounds({ data }) {
+  const map = useMap();
+  useEffect(() => {
+    if (data && data.features && data.features.length > 0) {
+      const geojsonLayer = L.geoJSON(data);
+      map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20], maxZoom: 16 });
+    }
+  }, [data, map]);
+  return null;
+}
+
 function parcelStyle(feature) {
   const hasOwner = feature.properties.siren &&
                    feature.properties.siren !== 'Unknown';
@@ -80,6 +92,7 @@ export default function Map({ parcels, loading, onBoundsChange }) {
           attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <MapAutoBounds data={parcels} />
         {parcels && (
           <GeoJSON
             ref={geoJsonRef}
