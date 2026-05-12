@@ -24,7 +24,8 @@ export function useParcels() {
       setParcels(response.data);
       setCount(response.data.features?.length || 0);
     } catch (err) {
-      setError(err.message);
+      const detail = err.response?.data?.error || err.message;
+      setError(detail);
       console.error('Failed to fetch parcels:', err);
     } finally {
       setLoading(false);
