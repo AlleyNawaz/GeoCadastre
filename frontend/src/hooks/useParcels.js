@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/_/backend/api';
+// Fallback for local development if VITE_API_BASE is not set and we're not on Vercel
+const FINAL_API_BASE = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3001/api' 
+  : API_BASE;
 
 export function useParcels() {
   const [parcels, setParcels] = useState(null);
@@ -16,7 +20,7 @@ export function useParcels() {
       const params = { limit: 500 };
       if (bbox) params.bbox = bbox;
 
-      const response = await axios.get(`${API_BASE}/parcels`, { params });
+      const response = await axios.get(`${FINAL_API_BASE}/parcels`, { params });
       setParcels(response.data);
       setCount(response.data.features?.length || 0);
     } catch (err) {
@@ -29,7 +33,7 @@ export function useParcels() {
 
   const fetchParcelById = useCallback(async (parcelId) => {
     try {
-      const response = await axios.get(`${API_BASE}/parcels/${parcelId}`);
+      const response = await axios.get(`${FINAL_API_BASE}/parcels/${parcelId}`);
       return response.data;
     } catch (err) {
       console.error('Failed to fetch parcel:', err);
