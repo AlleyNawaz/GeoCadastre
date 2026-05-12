@@ -20,6 +20,21 @@ export default function App() {
             {count} parcels loaded
           </span>
         )}
+        {/* Debug: confirm env var injection */}
+        <div style={{
+          position: 'fixed',
+          bottom: 40,
+          right: 10,
+          fontSize: '10px',
+          color: '#888',
+          background: 'white',
+          padding: '2px 5px',
+          borderRadius: '3px',
+          border: '1px solid #ccc',
+          zIndex: 1000
+        }}>
+          API: {import.meta.env.VITE_API_URL || 'NOT_DEFINED'}
+        </div>
       </header>
 
       {error && (
