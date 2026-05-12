@@ -14,8 +14,7 @@ router.get('/', async (req, res) => {
     if (bbox) {
       // bbox format: minLng,minLat,maxLng,maxLat
       const [minLng, minLat, maxLng, maxLat] = bbox.split(',').map(Number);
-      whereClause = `WHERE p.geometry &&
-        ST_MakeEnvelope($2, $3, $4, $5, 4326)`;
+      whereClause = `WHERE ST_Intersects(p.geometry, ST_MakeEnvelope($2, $3, $4, $5, 4326))`;
       params = [parseInt(limit), minLng, minLat, maxLng, maxLat];
     }
 
@@ -52,8 +51,11 @@ router.get('/', async (req, res) => {
 
     res.json(featureCollection);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error', details: err.message });
+    console.error('Fetch parcels error:', err);
+    res.status(500).json({ 
+      error: err.message, 
+      details: 'Check if the parcels table exists and is populated in the production database.' 
+    });
   }
 });
 
@@ -144,8 +146,8 @@ router.get('/:id', async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error', details: err.message });
+    console.error('Fetch parcel by ID error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

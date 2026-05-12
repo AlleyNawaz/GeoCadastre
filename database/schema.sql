@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 CREATE TABLE IF NOT EXISTS parcels (
   id            SERIAL PRIMARY KEY,
   parcel_id     VARCHAR(50) UNIQUE NOT NULL,
