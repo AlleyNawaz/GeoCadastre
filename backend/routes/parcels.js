@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/connection');
+const fs = require('fs');
+const path = require('path');
+
+const SAMPLE_DATA_PATH = path.join(__dirname, '../data/sample-parcels.json');
 
 // GET /api/parcels
 // Returns all parcels as GeoJSON FeatureCollection
@@ -51,11 +55,33 @@ router.get('/', async (req, res) => {
 
     res.json(featureCollection);
   } catch (err) {
-    console.error('Fetch parcels error:', err);
+    console.error('Fetch parcels error, falling back to sample data:', err.message);
+    
+    // Fallback to sample-parcels.json if database fails
+    if (fs.existsSync(SAMPLE_DATA_PATH)) {
+      try {
+        const sampleData = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
+        return res.json(sampleData);
+      } catch (fileErr) {
+        console.error('Failed to read sample data:', fileErr);
+      }
+    }
+
     res.status(500).json({ 
       error: err.message, 
-      details: 'Check if the parcels table exists and is populated in the production database.' 
+      details: 'Database connection failed and no sample data was found.' 
     });
+  }
+});
+
+// GET /api/parcels/sample
+// Explicitly serve the sample-parcels.json file
+router.get('/sample', (req, res) => {
+  if (fs.existsSync(SAMPLE_DATA_PATH)) {
+    const sampleData = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
+    res.json(sampleData);
+  } else {
+    res.status(404).json({ error: 'Sample data file not found' });
   }
 });
 

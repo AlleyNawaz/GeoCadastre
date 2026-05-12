@@ -4,6 +4,8 @@ Interactive map showing land parcel ownership for department 02
 (Aisne, France). Click any parcel to see the owning company's
 SIREN number and name.
 
+Spatial data was originally processed and validated locally with PostGIS/PostgreSQL. For deployment/demo purposes, a reduced GeoJSON dataset is served through the API.
+
 ## Stack
 - Frontend: React + Leaflet
 - Backend: Node.js + Express
