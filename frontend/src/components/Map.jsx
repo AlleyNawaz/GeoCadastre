@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import L from 'leaflet';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ParcelPopup from './ParcelPopup';
@@ -12,67 +12,92 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-// Department 02 (Aisne) center coordinates
 const AISNE_CENTER = [49.567, 3.621];
 const AISNE_ZOOM = 10;
 
-function parcelStyle() {
-  return {
-    fillColor:   '#3b82f6', // Bright Blue
-    fillOpacity: 0.3,
-    color:       '#2563eb', // Darker Blue border
+// Neutral professional styles
+const STYLES = {
+  default: {
+    fillColor:   '#cbd5e1', // Light Blue/Gray (Slate 300)
+    fillOpacity: 0.4,
+    color:       '#64748b', // Slate 500
     weight:      1,
-    opacity:     0.8,
-  };
-}
-
-function parcelStyleHover() {
-  return {
-    fillColor:   '#f59e0b',
-    fillOpacity: 0.5,
-    color:       '#d97706',
+  },
+  hover: {
+    fillColor:   '#94a3b8', // Slate 400
+    fillOpacity: 0.6,
+    color:       '#334155', // Slate 700
     weight:      2,
-    opacity:     1,
-  };
-}
+  },
+  selected: {
+    fillColor:   '#fb923c', // Orange 400
+    fillOpacity: 0.7,
+    color:       '#ea580c', // Orange 600
+    weight:      3,
+  }
+};
 
-export default function Map({ parcels, loading, onBoundsChange }) {
+export default function Map({ parcels, loading }) {
   const geoJsonRef = useRef(null);
+  const [selectedParcelId, setSelectedParcelId] = useState(null);
+
+  const getStyle = useCallback((feature) => {
+    const id = feature.id || feature.properties.id || feature.properties.parcel_id;
+    if (id === selectedParcelId) return STYLES.selected;
+    return STYLES.default;
+  }, [selectedParcelId]);
 
   const onEachFeature = useCallback((feature, layer) => {
-    const { properties } = feature;
+    const id = feature.id || feature.properties.id || feature.properties.parcel_id;
 
-    // Hover effects
-    layer.on('mouseover', () => {
-      layer.setStyle(parcelStyleHover());
-      layer.bringToFront();
+    layer.on({
+      mouseover: (e) => {
+        if (id !== selectedParcelId) {
+          e.target.setStyle(STYLES.hover);
+          e.target.bringToFront();
+        }
+      },
+      mouseout: (e) => {
+        if (id !== selectedParcelId) {
+          e.target.setStyle(STYLES.default);
+        }
+      },
+      click: (e) => {
+        setSelectedParcelId(id);
+        
+        // Render popup
+        const popupContent = renderToStaticMarkup(
+          <ParcelPopup properties={feature.properties} />
+        );
+        layer.bindPopup(popupContent, { maxWidth: 300, className: 'custom-parcel-popup' }).openPopup();
+        
+        // Center view slightly if needed
+        e.target.setStyle(STYLES.selected);
+        e.target.bringToFront();
+      }
     });
-    layer.on('mouseout', () => {
-      layer.setStyle(parcelStyle(feature));
-    });
+  }, [selectedParcelId]);
 
-    // Click — show popup
-    layer.on('click', () => {
-      const popupContent = renderToStaticMarkup(
-        <ParcelPopup properties={properties} />
-      );
-      layer
-        .bindPopup(popupContent, { maxWidth: 280 })
-        .openPopup();
-    });
-  }, []);
+  // Reset highlight when popup closes
+  useEffect(() => {
+    if (geoJsonRef.current) {
+      geoJsonRef.current.setStyle(getStyle);
+    }
+  }, [selectedParcelId, getStyle]);
 
   return (
-    <div className="map-container" style={{ position: 'relative' }}>
+    <div className="map-container" style={{ position: 'relative', height: '100%', width: '100%' }}>
       {loading && (
         <div className="loading-overlay">
-          Loading parcels...
+          <div className="spinner"></div>
+          <span>Loading spatial data...</span>
         </div>
       )}
       <MapContainer
         center={AISNE_CENTER}
         zoom={AISNE_ZOOM}
         style={{ height: '100%', width: '100%' }}
+        scrollWheelZoom={true}
       >
         <TileLayer
           attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -81,9 +106,9 @@ export default function Map({ parcels, loading, onBoundsChange }) {
         {parcels && (
           <GeoJSON
             ref={geoJsonRef}
-            key={JSON.stringify(parcels.features?.length)}
+            key={selectedParcelId ? `selected-${selectedParcelId}` : 'no-selection'}
             data={parcels}
-            style={parcelStyle}
+            style={getStyle}
             onEachFeature={onEachFeature}
           />
         )}
