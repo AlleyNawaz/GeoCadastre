@@ -1,18 +1,20 @@
+require('dotenv').config();
+const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
 const chain = require(path.join(__dirname, '../node_modules/stream-chain/src/index.js')).chain;
 const parser = require(path.join(__dirname, '../node_modules/stream-json/src/parser.js')).parser;
 const pick = require(path.join(__dirname, '../node_modules/stream-json/src/filters/pick.js')).pick;
 const streamArray = require(path.join(__dirname, '../node_modules/stream-json/src/streamers/stream-array.js')).streamArray;
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const BATCH_SIZE = 1000;
-const DATA_FILE = path.join(__dirname, '../../data/cadastre-02-parcelles.json');
+const DATA_FILE = path.join(__dirname, '../../cadastre-02-parcelles.json');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 async function runSchema() {
@@ -45,7 +47,7 @@ async function importParcels() {
     pipeline.on('data', async (data) => {
       const feature = data.value;
       const { id, properties, geometry } = feature;
-      
+
       batch.push({
         parcel_id: id,
         department: properties.commune ? properties.commune.substring(0, 2) : '02',
