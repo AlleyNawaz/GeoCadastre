@@ -28,6 +28,25 @@ function MapAutoBounds({ data }) {
   return null;
 }
 
+// Map events handler
+function MapEvents({ onBoundsChange }) {
+  const map = useMap();
+  useEffect(() => {
+    const handleMove = () => {
+      const bounds = map.getBounds();
+      const bbox = [
+        bounds.getWest(), bounds.getSouth(),
+        bounds.getEast(), bounds.getNorth()
+      ].join(',');
+      onBoundsChange(bbox);
+    };
+    
+    map.on('moveend', handleMove);
+    return () => map.off('moveend', handleMove);
+  }, [map, onBoundsChange]);
+  return null;
+}
+
 function parcelStyle(feature) {
   const hasOwner = feature.properties.siren &&
                    feature.properties.siren !== 'Unknown';
@@ -86,6 +105,7 @@ export default function Map({ parcels, loading, onBoundsChange }) {
       <MapContainer
         center={AISNE_CENTER}
         zoom={AISNE_ZOOM}
+        preferCanvas={true}
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
@@ -93,6 +113,7 @@ export default function Map({ parcels, loading, onBoundsChange }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MapAutoBounds data={parcels} />
+        <MapEvents onBoundsChange={onBoundsChange} />
         {parcels && (
           <GeoJSON
             ref={geoJsonRef}

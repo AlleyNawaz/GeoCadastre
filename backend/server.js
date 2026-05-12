@@ -28,9 +28,18 @@ const enrichProperties = (feature) => {
   };
 };
 
+// Helper to truncate coordinate precision for performance
+const truncateCoords = (coords) => {
+  if (Array.isArray(coords)) {
+    return coords.map(truncateCoords);
+  }
+  return typeof coords === 'number' ? Math.round(coords * 100000) / 100000 : coords;
+};
+
 // GET /parcels
 app.get('/parcels', (req, res) => {
-  console.log(`--- GET /parcels hit ---`);
+  const { bbox } = req.query;
+  console.log(`--- GET /parcels hit --- (BBOX: ${bbox || 'None'})`);
 
   try {
     if (!fs.existsSync(SAMPLE_DATA_PATH)) {
@@ -39,9 +48,28 @@ app.get('/parcels', (req, res) => {
 
     const geojson = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
     
-    // Enrich all features with ownership and metadata
-    geojson.features = geojson.features.map(f => ({
-      ...f,
+    let filteredFeatures = geojson.features;
+
+    // Apply BBOX filtering if requested
+    if (bbox) {
+      const [minX, minY, maxX, maxY] = bbox.split(',').map(Number);
+      filteredFeatures = filteredFeatures.filter(f => {
+        // Simple center-point based filtering for demo performance
+        const coords = f.geometry.coordinates;
+        const flat = Array.isArray(coords[0][0][0]) ? coords[0][0][0] : coords[0][0]; // Handle MultiPolygon vs Polygon
+        const [lng, lat] = flat;
+        return lng >= minX && lng <= maxX && lat >= minY && lat <= maxY;
+      });
+    }
+
+    // Enrich and truncate for performance
+    geojson.features = filteredFeatures.slice(0, 1000).map(f => ({
+      type: 'Feature',
+      id: f.id || f.properties.parcel_id,
+      geometry: {
+        ...f.geometry,
+        coordinates: truncateCoords(f.geometry.coordinates)
+      },
       properties: enrichProperties(f)
     }));
 
