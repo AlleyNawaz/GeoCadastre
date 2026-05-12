@@ -1,46 +1,72 @@
 # GeoCadastre
 
-GeoCadastre is a simple web tool to look at land parcels in the Aisne (02) area of France. You can use it to see different pieces of land on a map and find out basic information about them.
+Interactive map showing land parcel ownership for department 02
+(Aisne, France). Click any parcel to see the owning company's
+SIREN number and name.
 
-## Main Features
+Spatial data was originally processed and validated locally with PostGIS/PostgreSQL. For deployment/demo purposes, a reduced GeoJSON dataset is served through the API.
 
-* Click on the map to see land details like the ID and the area size.
-* View the company name and SIREN number for each parcel.
-* The map automatically moves to show you the right area when it loads.
-* Dark and modern design that works on different screen sizes.
-* Connects a local database to the web so the map data stays fast and accurate.
+## Stack
+- Frontend: React + Leaflet
+- Backend: Node.js + Express
+- Database: PostgreSQL + PostGIS
 
-## Tools Used
+## Prerequisites
+- Node.js 18+
+- PostgreSQL 15+ with PostGIS extension
+- ogr2ogr (part of GDAL)
 
-* Frontend: React and Leaflet for the map.
-* Backend: Node.js and Express to handle data.
-* Database: PostgreSQL and PostGIS to manage land shapes.
-* Connection: ngrok to link the local database to the live website.
+## Setup
 
-## How it Works
+### 1. Database
+```bash
+createdb cadastre
+psql cadastre -c "CREATE EXTENSION postgis;"
+psql cadastre -f database/schema.sql
+psql cadastre -f database/seed.sql
+```
 
-The project uses a special setup to handle large amounts of land data. Since the land map files are very big, they are stored in a local database on a computer. We then use a tool called ngrok to create a safe bridge between that computer and the website hosted on Vercel. This way, the website can show thousands of parcels quickly without needing expensive cloud storage.
+### 2. Import parcel data
+Download cadastre-02-parcelles.json from
+https://cadastre.data.gouv.fr/data/etalab-cadastre/latest/geojson/departements/02/
 
-## Setup Instructions
+```bash
+ogr2ogr -f PostgreSQL \
+  PG:"dbname=cadastre user=postgres" \
+  data/cadastre-02-parcelles.json \
+  -nln parcels_import -t_srs EPSG:4326
 
-### What you need
-* Node.js installed
-* PostgreSQL with the PostGIS extension
-* An ngrok account
+psql cadastre -c "
+  INSERT INTO parcels (parcel_id, geometry, area_m2)
+  SELECT id, ST_Multi(wkb_geometry), contenance
+  FROM parcels_import;
+  DROP TABLE parcels_import;
+"
+```
 
-### Steps to run it locally
-1. Get the code and install dependencies by running npm install in the main folder.
-2. Setup the database by running the schema file found in the database folder.
-3. Create a simple .env file in the backend folder with your database login details.
-4. Start the backend with npm run dev and then start ngrok on port 3001.
-5. In the frontend folder, set your VITE_API_URL to the link provided by ngrok.
+### 3. Backend
+```bash
+cd backend
+cp ../.env.example .env
+# Edit .env with your database credentials
+npm install
+npm run dev
+```
 
-## Data Source
+### 4. Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+# Open http://localhost:5173 (Vite default)
+```
 
-The land data comes from the French government (Etalab Cadastre). It has been cleaned and organized to make it easy to view in this app.
+## API Endpoints
+- `GET /api/parcels`           All parcels as GeoJSON
+- `GET /api/parcels/:id`       Single parcel details
+- `GET /api/parcels/search/by-siren?siren=552100554`
 
-## Notes
-
-The backend runs on a local computer using ngrok instead of a cloud database because land data is very large and complex. This is a common way to test professional mapping tools without high costs.
-
-This project was built by Ali Nawaz.
+## Known Limitations
+- Uses seed ownership data not real MAJIC files
+- Limited to 500 parcels per request for performance
+- SIRENE company lookup not implemented (bonus)

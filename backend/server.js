@@ -15,62 +15,28 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
-// Helper to get formatted properties
-const enrichProperties = (feature) => {
-  const props = feature.properties || {};
-  return {
-    parcel_id: feature.id || props.parcel_id || 'Unknown ID',
-    department: props.commune ? props.commune.substring(0, 2) : '02',
-    area_m2: Math.round(props.contenance || 0),
-    siren: props.siren || '552100554',
-    company_name: props.company_name || 'Société Foncière Aisne',
-    commune: props.commune || 'Unknown'
-  };
-};
-
-// Helper to truncate coordinate precision for performance
-const truncateCoords = (coords) => {
-  if (Array.isArray(coords)) {
-    return coords.map(truncateCoords);
-  }
-  return typeof coords === 'number' ? Math.round(coords * 100000) / 100000 : coords;
-};
-
 // GET /parcels
+// Serving GeoJSON from static file as requested for demo
 app.get('/parcels', (req, res) => {
-  const { bbox } = req.query;
-  console.log(`--- GET /parcels hit --- (BBOX: ${bbox || 'None'})`);
+  console.log(`--- GET /parcels hit ---`);
+  console.log(`Attempting to load from: ${SAMPLE_DATA_PATH}`);
 
   try {
     if (!fs.existsSync(SAMPLE_DATA_PATH)) {
+      console.error(`File not found: ${SAMPLE_DATA_PATH}`);
       return res.status(404).json({ error: 'Sample data file not found' });
     }
 
     const geojson = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
     
-    let filteredFeatures = geojson.features;
-
-    // Apply BBOX filtering if requested
-    if (bbox) {
-      const [minX, minY, maxX, maxY] = bbox.split(',').map(Number);
-      filteredFeatures = filteredFeatures.filter(f => {
-        // Simple center-point based filtering for demo performance
-        const coords = f.geometry.coordinates;
-        const flat = Array.isArray(coords[0][0][0]) ? coords[0][0][0] : coords[0][0]; // Handle MultiPolygon vs Polygon
-        const [lng, lat] = flat;
-        return lng >= minX && lng <= maxX && lat >= minY && lat <= maxY;
-      });
-    }
-
-    // Enrich and truncate for performance
-    geojson.features = filteredFeatures.slice(0, 1000).map(f => ({
-      type: 'Feature',
-      id: f.id || f.properties.parcel_id,
-      geometry: {
-        ...f.geometry,
-        coordinates: truncateCoords(f.geometry.coordinates)
-      },
-      properties: enrichProperties(f)
+    // Inject mock ownership data if not present
+    geojson.features = geojson.features.map(f => ({
+      ...f,
+      properties: {
+        ...f.properties,
+        siren: f.properties.siren || '552100554',
+        company_name: f.properties.company_name || 'GeoCadastre Demo Corp'
+      }
     }));
 
     console.log(`Successfully served ${geojson.features?.length || 0} features`);
@@ -81,36 +47,13 @@ app.get('/parcels', (req, res) => {
   }
 });
 
-// GET /parcels/:id
-app.get('/parcels/:id', (req, res) => {
-  try {
-    const { id } = req.params;
-    const geojson = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
-    const feature = geojson.features.find(f => f.id === id || f.properties.parcel_id === id);
-
-    if (!feature) {
-      return res.status(404).json({ error: 'Parcel not found' });
-    }
-
-    res.json(enrichProperties(feature));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', mode: 'demo', exposed_via: 'ngrok' });
+  res.json({ status: 'ok', demoMode: true });
 });
 
 app.get('/', (req, res) => {
-  res.json({ 
-    app: 'GeoCadastre API', 
-    endpoints: {
-      parcels: '/parcels',
-      health: '/health'
-    }
-  });
+  res.json({ message: 'GeoCadastre API running (Demo Mode)', parcels_endpoint: '/parcels' });
 });
 
 app.use((err, req, res, next) => {
