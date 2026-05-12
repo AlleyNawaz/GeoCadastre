@@ -1,178 +1,61 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db/connection');
 const fs = require('fs');
 const path = require('path');
 
 const SAMPLE_DATA_PATH = path.join(__dirname, '../data/sample-parcels.json');
 
 // GET /api/parcels
-// Returns all parcels as GeoJSON FeatureCollection
-router.get('/', async (req, res) => {
+// Returns sample parcels GeoJSON
+router.get('/', (req, res) => {
+  console.log('--- GET /api/parcels ---');
+  console.log(`Loading GeoJSON from: ${SAMPLE_DATA_PATH}`);
+
   try {
-    const { bbox, limit = 500 } = req.query;
-
-    let whereClause = '';
-    let params = [parseInt(limit)];
-
-    if (bbox) {
-      // bbox format: minLng,minLat,maxLng,maxLat
-      const [minLng, minLat, maxLng, maxLat] = bbox.split(',').map(Number);
-      whereClause = `WHERE ST_Intersects(p.geometry, ST_MakeEnvelope($2, $3, $4, $5, 4326))`;
-      params = [parseInt(limit), minLng, minLat, maxLng, maxLat];
+    if (!fs.existsSync(SAMPLE_DATA_PATH)) {
+      console.error('File not found:', SAMPLE_DATA_PATH);
+      return res.status(404).json({ error: 'Sample data file not found' });
     }
 
-    const query = `
-      SELECT
-        p.parcel_id,
-        p.area_m2,
-        ST_AsGeoJSON(
-          ST_Simplify(p.geometry, 0.00001)
-        )::json AS geometry,
-        o.siren,
-        o.company_name
-      FROM parcels p
-      LEFT JOIN owners o ON p.parcel_id = o.parcel_id
-      ${whereClause}
-      LIMIT $1
-    `;
-
-    const result = await pool.query(query, params);
-
-    const featureCollection = {
-      type: 'FeatureCollection',
-      features: result.rows.map(row => ({
-        type: 'Feature',
-        geometry: row.geometry,
-        properties: {
-          parcel_id:    row.parcel_id,
-          area_m2:      row.area_m2,
-          siren:        row.siren || 'Unknown',
-          company_name: row.company_name || 'Unknown owner',
-        }
-      }))
-    };
-
-    res.json(featureCollection);
-  } catch (err) {
-    console.error('Fetch parcels error, falling back to sample data:', err.message);
+    const geojson = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
     
-    // Fallback to sample-parcels.json if database fails
-    if (fs.existsSync(SAMPLE_DATA_PATH)) {
-      try {
-        const sampleData = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
-        return res.json(sampleData);
-      } catch (fileErr) {
-        console.error('Failed to read sample data:', fileErr);
+    // Inject mock ownership data for demo purposes if not present
+    geojson.features = geojson.features.map(f => ({
+      ...f,
+      properties: {
+        ...f.properties,
+        siren: f.properties.siren || '552100554', // Mock SIREN
+        company_name: f.properties.company_name || 'GeoCadastre Demo Corp'
       }
-    }
+    }));
 
-    res.status(500).json({ 
-      error: err.message, 
-      details: 'Database connection failed and no sample data was found.' 
-    });
-  }
-});
-
-// GET /api/parcels/sample
-// Explicitly serve the sample-parcels.json file
-router.get('/sample', (req, res) => {
-  if (fs.existsSync(SAMPLE_DATA_PATH)) {
-    const sampleData = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
-    res.json(sampleData);
-  } else {
-    res.status(404).json({ error: 'Sample data file not found' });
-  }
-});
-
-// GET /api/parcels/search/by-siren?siren=552100554
-// Returns all parcels owned by a company
-router.get('/search/by-siren', async (req, res) => {
-  try {
-    const { siren } = req.query;
-
-    if (!siren) {
-      return res.status(400).json({ error: 'siren parameter required' });
-    }
-
-    const query = `
-      SELECT
-        p.parcel_id,
-        p.area_m2,
-        ST_AsGeoJSON(p.geometry)::json AS geometry,
-        o.siren,
-        o.company_name
-      FROM parcels p
-      JOIN owners o ON p.parcel_id = o.parcel_id
-      WHERE o.siren = $1
-    `;
-
-    const result = await pool.query(query, [siren]);
-
-    res.json({
-      type: 'FeatureCollection',
-      features: result.rows.map(row => ({
-        type: 'Feature',
-        geometry: row.geometry,
-        properties: {
-          parcel_id:    row.parcel_id,
-          area_m2:      row.area_m2,
-          siren:        row.siren,
-          company_name: row.company_name,
-        }
-      }))
-    });
+    console.log(`Successfully loaded ${geojson.features?.length || 0} features`);
+    res.json(geojson);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error', details: err.message });
-  }
-});
-
-// GET /api/health
-// Health check endpoint
-router.get('/health', async (req, res) => {
-  try {
-    await pool.query('SELECT 1');
-    res.json({ status: 'ok', database: 'connected' });
-  } catch (err) {
-    res.status(500).json({ 
-      status: 'error', 
-      database: 'disconnected', 
-      error: err.message,
-      hint: 'Check your database environment variables and connectivity.'
-    });
+    console.error('Error serving GeoJSON:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
 // GET /api/parcels/:id
-// Returns single parcel with full details
-router.get('/:id', async (req, res) => {
+// Returns single parcel details from the sample file
+router.get('/:id', (req, res) => {
   try {
     const { id } = req.params;
+    const geojson = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
+    const feature = geojson.features.find(f => f.id === id || f.properties.parcel_id === id);
 
-    const query = `
-      SELECT
-        p.parcel_id,
-        p.department,
-        p.area_m2,
-        ST_AsGeoJSON(p.geometry)::json AS geometry,
-        o.siren,
-        o.company_name,
-        o.ownership_pct
-      FROM parcels p
-      LEFT JOIN owners o ON p.parcel_id = o.parcel_id
-      WHERE p.parcel_id = $1
-    `;
-
-    const result = await pool.query(query, [id]);
-
-    if (result.rows.length === 0) {
+    if (!feature) {
       return res.status(404).json({ error: 'Parcel not found' });
     }
 
-    res.json(result.rows[0]);
+    // Return in the format the UI expects
+    res.json({
+      parcel_id: feature.id || feature.properties.parcel_id,
+      geometry: feature.geometry,
+      ...feature.properties
+    });
   } catch (err) {
-    console.error('Fetch parcel by ID error:', err);
     res.status(500).json({ error: err.message });
   }
 });

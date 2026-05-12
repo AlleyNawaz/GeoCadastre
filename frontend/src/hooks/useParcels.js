@@ -1,11 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_BASE || '/_/backend/api';
-// Fallback for local development if VITE_API_BASE is not set and we're not on Vercel
-const FINAL_API_BASE = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3001/api' 
-  : API_BASE;
+// Use environment variable or relative path for production
+const API_URL = import.meta.env.VITE_API_URL || '/parcels';
 
 export function useParcels() {
   const [parcels, setParcels] = useState(null);
@@ -17,17 +13,26 @@ export function useParcels() {
     setLoading(true);
     setError(null);
     try {
-      const params = { limit: 500 };
-      if (bbox) params.bbox = bbox;
+      console.log(`--- Fetching parcels from ${API_URL} ---`);
+      
+      const url = new URL(API_URL, window.location.origin);
+      if (bbox) url.searchParams.append('bbox', bbox);
 
-      const response = await axios.get(`${FINAL_API_BASE}/parcels`, { params });
-      setParcels(response.data);
-      setCount(response.data.features?.length || 0);
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP Error ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('GeoJSON response successfully received:', data);
+      
+      setParcels(data);
+      setCount(data.features?.length || 0);
     } catch (err) {
-      const error = err.response?.data?.error || err.message;
-      const details = err.response?.data?.details ? ` - ${err.response.data.details}` : '';
-      setError(`${error}${details}`);
-      console.error('Failed to fetch parcels:', err);
+      console.error('Fetch parcels failed:', err);
+      setError(err.message || 'Failed to load parcels');
     } finally {
       setLoading(false);
     }
@@ -35,10 +40,12 @@ export function useParcels() {
 
   const fetchParcelById = useCallback(async (parcelId) => {
     try {
-      const response = await axios.get(`${FINAL_API_BASE}/parcels/${parcelId}`);
-      return response.data;
+      const response = await fetch(`${API_URL}/${parcelId}`);
+      if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+      const data = await response.json();
+      return data;
     } catch (err) {
-      console.error('Failed to fetch parcel:', err);
+      console.error('Fetch parcel by ID failed:', err);
       return null;
     }
   }, []);

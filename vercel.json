@@ -23,6 +23,10 @@
       "destination": "backend/server.js"
     },
     {
+      "source": "/parcels",
+      "destination": "backend/server.js"
+    },
+    {
       "source": "/(.*)",
       "destination": "frontend/$1"
     }
