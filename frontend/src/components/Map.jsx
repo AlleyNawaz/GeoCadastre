@@ -16,13 +16,11 @@ L.Icon.Default.mergeOptions({
 const AISNE_CENTER = [49.567, 3.621];
 const AISNE_ZOOM = 10;
 
-function parcelStyle(feature) {
-  const hasOwner = feature.properties.siren &&
-                   feature.properties.siren !== 'Unknown';
+function parcelStyle() {
   return {
-    fillColor:   hasOwner ? '#1a56db' : '#9ca3af',
+    fillColor:   '#3b82f6', // Bright Blue
     fillOpacity: 0.3,
-    color:       hasOwner ? '#1e40af' : '#6b7280',
+    color:       '#2563eb', // Darker Blue border
     weight:      1,
     opacity:     0.8,
   };

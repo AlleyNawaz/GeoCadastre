@@ -29,16 +29,6 @@ app.get('/parcels', (req, res) => {
 
     const geojson = JSON.parse(fs.readFileSync(SAMPLE_DATA_PATH, 'utf8'));
     
-    // Inject mock ownership data if not present
-    geojson.features = geojson.features.map(f => ({
-      ...f,
-      properties: {
-        ...f.properties,
-        siren: f.properties.siren || '552100554',
-        company_name: f.properties.company_name || 'GeoCadastre Demo Corp'
-      }
-    }));
-
     console.log(`Successfully served ${geojson.features?.length || 0} features`);
     res.json(geojson);
   } catch (err) {
