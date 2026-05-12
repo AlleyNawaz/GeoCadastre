@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP for development if needed, or configure it correctly
+  contentSecurityPolicy: false,
 }));
 app.use(cors());
 app.use(morgan('dev'));
@@ -26,6 +26,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
