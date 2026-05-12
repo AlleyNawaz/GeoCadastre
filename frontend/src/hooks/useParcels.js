@@ -13,10 +13,10 @@ export function useParcels() {
     setLoading(true);
     setError(null);
     try {
-      console.log(`--- Fetching parcels from ${API_URL} ---`);
-      
       const url = new URL(API_URL, window.location.origin);
       if (bbox) url.searchParams.append('bbox', bbox);
+
+      console.log(`--- Fetching parcels from: ${url.toString()} ---`);
 
       const response = await fetch(url);
       
